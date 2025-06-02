@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open World Pixel RPG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #1a202c; /* Darker overall background */
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 10px;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+
+        /* --- Game Views --- */
+        .game-view { display: none; width: 100%; }
+        .game-view.active { display: block; }
+
+        /* --- Start Menu --- */
+        #start-menu-container {
+            background-color: #2d3748; padding: 30px; border: 4px solid #4a5568;
+            box-shadow: 0 0 15px rgba(0,0,0,0.7); text-align: center; border-radius: 8px;
+            max-width: 500px; margin: auto;
+        }
+        #start-menu-container h1 { color: #f6e05e; margin-bottom: 25px; font-size: 1.8rem; }
+        #start-menu-container button {
+            display: block; width: 100%; margin-bottom: 12px; background-color: #f6e05e;
+            color: #2d3748; border: 2px solid #2d3748; padding: 10px 15px;
+            font-size: 0.9rem; border-radius: 5px; cursor: pointer;
+        }
+        #start-menu-container button:hover { background-color: #f6ad55; }
+
+        /* --- Exploration View --- */
+        #exploration-container {
+            width: 95%; max-width: 900px; margin: auto;
+            background-color: #2d3748; padding: 15px; border: 4px solid #4a5568;
+            border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.7);
+            display: flex; flex-direction: column; align-items: center;
+        }
+        #exploration-map-grid {
+            display: grid; border: 2px solid #4a5568; margin-bottom:15px;
+            background-color: #1a202c; /* Darker map background */
+        }
+        .exploration-cell {
+            width: 25px; height: 25px; /* Smaller cells for larger exploration map */
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; border: 1px solid #4a5568; /* Subtle grid lines */
+        }
+        .exp-floor { background-color: #718096; } /* Road/Grass */
+        .exp-wall { background-color: #4a5568; color: #a0aec0;} /* Mountain/Impassable */
+        .exp-forest { background-color: #38a169; color: #c6f6d5;} /* Forest */
+        .exp-cave { background-color: #744210; color: #fbd38d;} /* Cave Entrance */
+        .exp-village { background-color: #ecc94b; color: #744210;} /* Village */
+        .exp-party {
+            background-color: #f6e05e !important; color: #2d3748 !important;
+            border-radius: 50%; width: 20px !important; height: 20px !important;
+            font-weight: bold;
+        }
+        #exploration-ui {
+            background-color: #1a202c; padding: 10px; border-radius: 5px;
+            font-size: 0.75rem; width: 100%; max-width: 600px; text-align: center;
+        }
+        #exploration-ui h3 { color: #f6e05e; margin-bottom: 8px; }
+        #exploration-log { min-height: 40px; background-color: #2d3748; padding: 8px; border-radius: 3px; margin-top: 10px;}
+
+
+        /* --- Combat View (adapted from previous) --- */
+        #combat-container {
+            display: none; /* Initially hidden, shown when gameState is 'combat' */
+            grid-template-columns: auto 350px; 
+            gap: 20px; background-color: #34495e; padding: 20px;
+            border: 4px solid #7f8c8d; box-shadow: 0 0 10px rgba(0,0,0,0.5); border-radius: 8px;
+        }
+        .map-grid { display: grid; border: 2px solid #7f8c8d; position: relative; }
+        .map-cell {
+            width: 30px; height: 30px; background-color: #95a5a6; border: 1px solid #7f8c8d;
+            box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-size: 14px;
+        }
+        .obstacle { background-color: #7f8c8d !important; color: #34495e; }
+        .active-character-cell-map { outline: 3px dashed #f1c40f !important; z-index: 5; }
+        .party-member, .enemy { 
+            width: 26px; height: 26px; position: absolute; display: flex;
+            align-items: center; justify-content: center; font-size: 16px;
+            border: 2px solid black; transition: left 0.2s ease, top 0.2s ease, box-shadow 0.2s ease; 
+            z-index: 10; pointer-events: none;
+        }
+        .party-member.active-sprite { box-shadow: 0 0 8px 4px #f1c40f; }
+        .enemy.active-sprite { box-shadow: 0 0 8px 4px #e74c3c; }
+        .mage { background-color: #8e44ad; color: white; } 
+        .rogue { background-color: #607d8b; color: white; } 
+        .goblin-enemy { background-color: #2ecc71; color: white; box-shadow: 0 0 6px 3px rgba(255, 0, 0, 0.5); }
+        .boss-goblin-enemy { background-color: #1abc9c; color: white; box-shadow: 0 0 8px 4px rgba(255, 50, 50, 0.7); border: 2px solid #c0392b; }
+        .enemy.dead, .party-member.dead { background-color: #c0392b !important; opacity: 0.5; box-shadow: none !important; z-index: 1 !important; }
+        
+        .combat-ui-panel { 
+            background-color: #4a6178; padding: 15px; border: 2px solid #7f8c8d;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .combat-ui-panel h2, .combat-ui-panel h3 { color: #f1c40f; margin-bottom: 5px; text-align: center; }
+        .stats-container, #enemies-stats-container { display: flex; flex-direction: column; gap: 8px; margin-bottom:5px; }
+        .character-stats, .enemy-stats-block { border: 1px solid #7f8c8d; padding: 5px; font-size: 0.65rem; }
+        .character-stats h4, .enemy-stats-block h4 { cursor: pointer; text-decoration: underline; }
+        .character-stats h4:hover, .enemy-stats-block h4:hover { color: #f39c12; }
+        .character-stats.active-char-ui { border-color: #f1c40f; background-color: #56708a; }
+        .character-stats p, .enemy-stats-block p { margin: 2px 0; }
+
+        .health-bar-container { margin-top: 3px; position: relative; }
+        .health-bar { width: 100%; height: 12px; background-color: #c0392b; border: 1px solid #2c3e50; border-radius: 3px; overflow: hidden; }
+        .health-bar-current { height: 100%; background-color: #2ecc71; width: 100%; transition: width 0.3s ease-out; border-radius: 2px 0 0 2px; }
+        .health-bar-text { position: absolute; top: -1px; left: 0; width: 100%; text-align: center; font-size: 0.55rem; color: white; line-height: 14px; text-shadow: 1px 1px 1px #2c3e50; }
+
+        .turn-order-container { border: 1px solid #7f8c8d; padding: 8px; margin-top: 5px; }
+        .turn-order-toggle { cursor: pointer; user-select: none; }
+        .turn-order-toggle:hover { color: #f39c12; }
+        .turn-order-container h3 { font-size: 0.75rem; margin-bottom: 3px;} 
+        .turn-order-list { list-style: none; padding: 0; margin: 0; font-size: 0.65rem; max-height: 100px; overflow-y: auto; }
+        .turn-order-list.collapsed { display: none; }
+        .turn-order-list li { padding: 2px 3px; border-bottom: 1px dashed #7f8c8d;} 
+        .turn-order-list li:last-child { border-bottom: none; }
+        .turn-order-list li.current-turn-visual { background-color: #f1c40f; color: #2c3e50; font-weight: bold; }
+
+        .combat-log { height: 100px; overflow-y: auto; background-color: #2c3e50; border: 1px solid #7f8c8d; padding: 8px; font-size: 0.6rem; line-height: 1.4; }
+        .combat-log p { margin-bottom: 4px; }
+        .combat-log .player-action { color: #3498db; } 
+        .combat-log .enemy-action { color: #e74c3c; } 
+        .combat-log .info { color: #f1c40f; } 
+        .combat-log .banter { color: #e67e22; font-style: italic;} 
+        
+        .action-buttons button { 
+            font-family: 'Press Start 2P', cursive; background-color: #f1c40f; color: #2c3e50; 
+            border: 2px solid #2c3e50; padding: 8px 12px; cursor: pointer;
+            text-transform: uppercase; font-size: 0.7rem;
+        }
+        .action-buttons button:disabled { background-color: #7f8c8d; cursor: not-allowed; color: #bdc3c7; }
+        .action-buttons button:hover:not(:disabled) { background-color: #f39c12; }
+        .selected-action { border-color: #e67e22 !important; box-shadow: 0 0 5px #e67e22; }
+        
+        .map-cell.reachable { background-color: #b8c9d4 !important; cursor: pointer; outline: 1px dashed #f1c40f; }
+        .map-cell.reachable:hover { background-color: #cad5dd !important; }
+        .map-cell.attackable-area { background-color: #d1c4e9 !important; cursor: crosshair; outline: 1px dashed #9b59b6; }
+        .map-cell.targetable-enemy { outline: 3px dashed #e74c3c !important; cursor: crosshair; }
+        
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); padding-top: 60px; }
+        .modal-content { background-color: #34495e; margin: 5% auto; padding: 20px; border: 3px solid #f1c40f; width: 80%; max-width: 400px; font-size: 0.8rem; color: #ecf0f1; position: relative; }
+        .modal-close-button { color: #f1c40f; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .modal-close-button:hover, .modal-close-button:focus { color: #f39c12; text-decoration: none; }
+        .modal-content h3 { color: #f1c40f; text-align: center; margin-bottom: 15px; }
+        .modal-content p { margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <div id="start-menu-container" class="game-view active">
+        <h1 class="text-2xl">Pixel D&D World</h1>
+        <button id="easy-mode-button">Easy</button>
+        <button id="medium-mode-button">Medium</button>
+        <button id="hard-mode-button">Hard</button>
+    </div>
+
+    <div id="exploration-container" class="game-view">
+        <div id="exploration-map-grid">
+            </div>
+        <div id="exploration-ui">
+            <h3>Party Status</h3>
+            <p>Mage: <span id="exp-mage-hp">15</span>/15 HP</p>
+            <p>Rogue: <span id="exp-rogue-hp">18</span>/18 HP</p>
+            <p>Location: <span id="party-location-display">Overworld (0,0)</span></p>
+            <p id="exploration-log">Welcome, adventurer! Use arrow keys to move.</p>
+        </div>
+    </div>
+
+    <div class="game-container game-view" id="combat-container">
+        <div id="map-grid" class="map-grid"></div>
+        <div class="combat-ui-panel">
+            <div class="turn-order-container">
+                <h3 class="turn-order-toggle">Turn Order <span id="turn-order-indicator">[+]</span></h3>
+                <ul id="turn-order-list" class="turn-order-list collapsed"></ul>
+            </div>
+            <div id="party-stats-container" class="stats-container"></div>
+            <div id="enemies-stats-container"> 
+                <h3>Enemies</h3>
+            </div>
+            <div id="action-buttons" class="action-buttons flex flex-col gap-2">
+                <button id="move-button">Move</button>
+                <button id="attack-button">Attack</button>
+                <button id="end-turn-button">End Turn</button>
+            </div>
+            <h3>Combat Log</h3>
+            <div id="combat-log" class="combat-log"></div>
+        </div>
+    </div>
+
+    <div id="stats-modal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close-button">&times;</span>
+            <h3 id="modal-char-name">Character Name</h3>
+            <p>HP: <span id="modal-char-hp"></span>/<span id="modal-char-maxhp"></span></p>
+            <p>AC: <span id="modal-char-ac"></span></p>
+            <p>Speed: <span id="modal-char-speed"></span> squares</p>
+            <p>Attack: <span id="modal-char-attackname"></span></p>
+            <p>Attack Bonus: +<span id="modal-char-atkbonus"></span></p>
+            <p>Damage: 1d<span id="modal-char-dmgdice"></span> + <span id="modal-char-dmgbonus"></span></p>
+            <p>Dexterity Mod: <span id="modal-char-dexmod"></span></p>
+        </div>
+    </div>
+
+    <script>
+        // --- Global Game Constants & State ---
+        const COMBAT_GRID_SIZE = 12;
+        const COMBAT_CELL_SIZE = 30;
+        const EXPLORATION_GRID_WIDTH = 20;
+        const EXPLORATION_GRID_HEIGHT = 15;
+        const EXPLORATION_CELL_SIZE = 25;
+        const OBSTACLE_CHANCE = 0.15; 
+        let currentDifficulty = 'easy'; 
+        let gameState = 'start_menu'; 
+        
+        const combatInitialMapLayout = [ 
+            "............", ".#........G.", ".#....####..", "......#.....",
+            "....#.......", "....#...#...", "..###...#...", "........#...",
+            ".####...#...", "..M.......#.", "..R.......#.", "............"
+        ];
+        let combatCurrentMapState = []; 
+        let enemies = []; 
+        const party = [
+            { id: "mage", name: "Mage", char: "M", hp: 15, maxHp: 15, ac: 12, attackName: "Fire Bolt", attackBonus: 4, damageDice: 10, damageBonus: 2, speed: 3, x: 0, y: 0, combatX: 0, combatY: 0, dexMod: 1, initiative: 0, isDead: false, element: null, hasMovedThisTurn: false, hasActedThisTurn: false, isRangedAttacker: true, attackRange: 6 },
+            { id: "rogue", name: "Rogue", char: "R", hp: 18, maxHp: 18, ac: 14, attackName: "Shortsword", attackBonus: 5, damageDice: 6, damageBonus: 3, speed: 3, x: 0, y: 0, combatX: 0, combatY: 0, dexMod: 3, initiative: 0, isDead: false, element: null, hasMovedThisTurn: false, hasActedThisTurn: false, isRangedAttacker: false, attackRange: 1 }
+        ];
+        let partyPosition = { x: 1, y: 1 }; // For exploration map
+
+        const explorationMapLayout = [ 
+            "WWWWWWWWWWWWWWWWWWWW",
+            "W..................W",
+            "W..F....V....F...C.W",
+            "W..FFFF........FFFFW",
+            "W..F.............F.W",
+            "W..................W",
+            "W....WWWWWW........W",
+            "W....W....W........W",
+            "W....W.C..W........W",
+            "W....WWWWWW........W",
+            "W..................W",
+            "W..FFFF.....FFFF...W",
+            "W..F.............F.W",
+            "W................P.W", 
+            "WWWWWWWWWWWWWWWWWWWW",
+        ];
+
+
+        let turnOrder = [];
+        let currentTurnIndex = 0;
+        let selectedAction = null; 
+        let combatGameEnded = false; 
+
+        // --- DOM Elements ---
+        const startMenuContainer = document.getElementById('start-menu-container');
+        const explorationContainer = document.getElementById('exploration-container');
+        const combatContainer = document.getElementById('combat-container');
+        const explorationMapGrid = document.getElementById('exploration-map-grid');
+        const combatMapGrid = document.getElementById('map-grid'); 
+        const partyStatsContainer = document.getElementById('party-stats-container');
+        const enemiesStatsContainer = document.getElementById('enemies-stats-container'); 
+        const combatLog = document.getElementById('combat-log');
+        const moveButton = document.getElementById('move-button');
+        const attackButton = document.getElementById('attack-button');
+        const endTurnButton = document.getElementById('end-turn-button');
+        const turnOrderListUI = document.getElementById('turn-order-list');
+        const turnOrderToggle = document.querySelector('.turn-order-toggle');
+        const turnOrderIndicator = document.getElementById('turn-order-indicator');
+        const statsModal = document.getElementById('stats-modal');
+        const modalCloseButton = document.querySelector('.modal-close-button');
+        const explorationLog = document.getElementById('exploration-log');
+        const partyLocationDisplay = document.getElementById('party-location-display');
+
+        // --- Gemini API Helper ---
+        const GEMINI_API_KEY = ""; 
+        const GEMINI_API_URL_TEXT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+        async function callGemini(promptText) { 
+            const payload = { contents: [{ role: "user", parts: [{ text: promptText }] }] };
+            try {
+                const response = await fetch(GEMINI_API_URL_TEXT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) { const errorBody = await response.text(); console.error("Gemini API Error Response:", errorBody); throw new Error(`Gemini API request failed with status ${response.status}`); }
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0) {
+                    return result.candidates[0].content.parts[0].text.trim();
+                } else { console.error("Gemini API - Unexpected response structure:", result); return "The spirits are silent..."; }
+            } catch (error) { console.error("Error calling Gemini API:", error); return "The connection to the ethereal plane is unstable..."; }
+        }
+        
+        // --- Core Utility Functions (Defined before first call) ---
+        function rollDice(sides) { return Math.floor(Math.random() * sides) + 1; }
+        function addToLog(message, type = 'info', logElement = combatLog) { 
+            const p = document.createElement('p');
+            p.textContent = message;
+            p.className = type; 
+            logElement.appendChild(p);
+            logElement.scrollTop = logElement.scrollHeight; 
+        }
+        function updateHPDisplays() {
+            party.forEach(member => {
+                const hpTextSpan = document.getElementById(`hp-text-${member.id}`);
+                const hpBarDiv = document.getElementById(`hp-bar-${member.id}`);
+                const expHpSpan = document.getElementById(`exp-${member.id}-hp`); 
+                if (hpTextSpan && hpBarDiv) {
+                    hpTextSpan.textContent = member.hp;
+                    const percentage = (member.hp / member.maxHp) * 100;
+                    hpBarDiv.style.width = `${Math.max(0, percentage)}%`;
+                }
+                if (expHpSpan) expHpSpan.textContent = member.hp;
+            });
+            enemies.forEach(enemy => {
+                const hpTextSpan = document.getElementById(`hp-text-enemy-${enemy.uniqueId}`);
+                const hpBarDiv = document.getElementById(`hp-bar-enemy-${enemy.uniqueId}`);
+                if (hpTextSpan && hpBarDiv) {
+                    hpTextSpan.textContent = enemy.hp;
+                    const percentage = (enemy.hp / enemy.maxHp) * 100;
+                    hpBarDiv.style.width = `${Math.max(0, percentage)}%`;
+                }
+            });
+        }
+        function getCombatCell(x, y) { 
+            if (x < 0 || x >= COMBAT_GRID_SIZE || y < 0 || y >= COMBAT_GRID_SIZE || !combatMapGrid.children[y * COMBAT_GRID_SIZE + x]) return null;
+            return combatMapGrid.children[y * COMBAT_GRID_SIZE + x];
+        }
+        function isCombatObstacle(x, y) { 
+             if (x < 0 || x >= COMBAT_GRID_SIZE || y < 0 || y >= COMBAT_GRID_SIZE) return true; 
+            return combatCurrentMapState[y][x] === '#';
+        }
+        function hasLineOfSight(x0, y0, x1, y1) { 
+            let dx = Math.abs(x1 - x0); let dy = Math.abs(y1 - y0);
+            let sx = (x0 < x1) ? 1 : -1; let sy = (y0 < y1) ? 1 : -1;
+            let err = dx - dy;
+            let currentX = x0; let currentY = y0;
+            while(true) {
+                if (currentX === x1 && currentY === y1) break; 
+                let isStartCell = (currentX === x0 && currentY === y0);
+                if (!isStartCell && isCombatObstacle(currentX, currentY)) return false; 
+                let e2 = 2 * err;
+                if (e2 > -dy) { err -= dy; currentX += sx; }
+                if (e2 < dx) { err += dx; currentY += sy; }
+            }
+            return true;
+        }
+        function heuristic(x1, y1, x2, y2) { return Math.abs(x1 - x2) + Math.abs(y1 - y2); }
+        function isCellOccupiedByCombatEntity(x, y, excludeEntity = null) { 
+            if (party.some(p => (!excludeEntity || !excludeEntity.id || p.id !== excludeEntity.id) && !p.isDead && p.combatX === x && p.combatY === y)) return true;
+            if (enemies.some(e => (!excludeEntity || excludeEntity.id || e.uniqueId !== excludeEntity.uniqueId) && !e.isDead && e.x === x && e.y === y)) return true; 
+            return false;
+        }
+        function findPathInCombat(startX, startY, endX, endY, movingEntity) { 
+            let openSet = [{x: startX, y: startY, g: 0, h: heuristic(startX, startY, endX, endY), f: heuristic(startX, startY, endX, endY), parent: null}];
+            let closedSet = new Set();
+            while (openSet.length > 0) {
+                openSet.sort((a, b) => a.f - b.f);
+                let current = openSet.shift();
+                if (current.x === endX && current.y === endY) {
+                    let pathNodes = []; let temp = current;
+                    while (temp) { pathNodes.unshift({x: temp.x, y: temp.y, g: temp.g}); temp = temp.parent; }
+                    return { path: pathNodes, cost: current.g };
+                }
+                closedSet.add(`${current.x},${current.y}`);
+                for (let dx = -1; dx <= 1; dx++) {
+                    for (let dy = -1; dy <= 1; dy++) {
+                        if (dx === 0 && dy === 0) continue;
+                        const isDiagonalMove = (dx !== 0 && dy !== 0);
+                        const baseMoveCost = isDiagonalMove ? 2 : 1;
+                        const nextX = current.x + dx; const nextY = current.y + dy;
+                        if (nextX >= 0 && nextX < COMBAT_GRID_SIZE && nextY >= 0 && nextY < COMBAT_GRID_SIZE && !isCombatObstacle(nextX, nextY) && !closedSet.has(`${nextX},${nextY}`)) {
+                            if (!isCellOccupiedByCombatEntity(nextX, nextY, movingEntity) || (nextX === endX && nextY === endY)) {
+                                let gScore = current.g + baseMoveCost;
+                                let existingNeighbor = openSet.find(n => n.x === nextX && n.y === nextY);
+                                if (!existingNeighbor || gScore < existingNeighbor.g) {
+                                    let hScore = heuristic(nextX, nextY, endX, endY);
+                                    if (existingNeighbor) { existingNeighbor.g = gScore; existingNeighbor.f = gScore + hScore; existingNeighbor.parent = current; } 
+                                    else { openSet.push({x: nextX, y: nextY, g: gScore, h: hScore, f: gScore + hScore, parent: current}); }
+                                }
+                            }
+                        }
+                        if (dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy)) { 
+                            const jumpOverX = current.x + dx; const jumpOverY = current.y + dy;
+                            const landX = current.x + 2 * dx; const landY = current.y + 2 * dy;
+                            if (jumpOverX >= 0 && jumpOverX < COMBAT_GRID_SIZE && jumpOverY >= 0 && jumpOverY < COMBAT_GRID_SIZE && !isCombatObstacle(jumpOverX, jumpOverY) &&
+                                landX >= 0 && landX < COMBAT_GRID_SIZE && landY >= 0 && landY < COMBAT_GRID_SIZE && !isCombatObstacle(landX, landY) && !closedSet.has(`${landX},${landY}`)) {
+                                const jumpedChar = party.find(p=>p.combatX === jumpOverX && p.combatY === jumpOverY && !p.isDead && p !== movingEntity) || enemies.find(e=>e.x === jumpOverX && e.y === jumpOverY && !e.isDead && e !== movingEntity);
+                                const canLand = !isCellOccupiedByCombatEntity(landX, landY, movingEntity) || (landX === endX && landY === endY);
+                                if (jumpedChar && canLand) { 
+                                    let gScore = current.g + (baseMoveCost * 2); 
+                                    let existingNeighbor = openSet.find(n => n.x === landX && n.y === landY);
+                                    if (!existingNeighbor || gScore < existingNeighbor.g) {
+                                        let hScore = heuristic(landX, landY, endX, endY);
+                                        if (existingNeighbor) { existingNeighbor.g = gScore; existingNeighbor.f = gScore + hScore; existingNeighbor.parent = current; } 
+                                        else { openSet.push({x: landX, y: landY, g: gScore, h: hScore, f: gScore + hScore, parent: current}); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        // --- Map and Entity Rendering (Combat) ---
+        function initializeCombatMapState() { 
+            combatCurrentMapState = [];
+            for (let r = 0; r < COMBAT_GRID_SIZE; r++) {
+                combatCurrentMapState[r] = [];
+                for (let c = 0; c < COMBAT_GRID_SIZE; c++) {
+                    combatCurrentMapState[r][c] = (combatInitialMapLayout[r][c] === '#') ? '#' : '.';
+                }
+            }
+        }
+        function generateAdditionalCombatObstacles() { 
+            let entityPositions = [];
+            party.forEach(p => entityPositions.push({x: p.combatX, y: p.combatY}));
+            enemies.forEach(e => entityPositions.push({x: e.x, y: e.y})); 
+            for (let r = 0; r < COMBAT_GRID_SIZE; r++) {
+                for (let c = 0; c < COMBAT_GRID_SIZE; c++) {
+                    const isEntityPos = entityPositions.some(pos => pos.x === c && pos.y === r);
+                    if (combatCurrentMapState[r][c] === '.' && !isEntityPos) { 
+                        if (Math.random() < OBSTACLE_CHANCE) combatCurrentMapState[r][c] = '#';
+                    }
+                }
+            }
+        }
+        function drawCombatMapFromState() { 
+            combatMapGrid.innerHTML = ''; 
+            for (let r = 0; r < COMBAT_GRID_SIZE; r++) {
+                for (let c = 0; c < COMBAT_GRID_SIZE; c++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('map-cell');
+                    cell.dataset.col = c; cell.dataset.row = r;
+                    if (combatCurrentMapState[r][c] === '#') {
+                        cell.classList.add('obstacle'); cell.textContent = '🪨';
+                    }
+                    cell.addEventListener('click', () => handleCombatCellClick(parseInt(cell.dataset.col), parseInt(cell.dataset.row)));
+                    combatMapGrid.appendChild(cell);
+                }
+            }
+        }
+        function createCombatEntityElement(entity) { 
+            const elem = document.createElement('div');
+            if (entity.id) { 
+                elem.classList.add(entity.id); 
+                elem.classList.add('party-member');
+            } else { 
+                if (entity.name.toLowerCase().includes("boss")) elem.classList.add('boss-goblin-enemy');
+                else elem.classList.add('goblin-enemy');
+                elem.classList.add('enemy');
+            }
+            elem.textContent = entity.char;
+            entity.element = elem; 
+            combatMapGrid.appendChild(entity.element); 
+            positionCombatEntity(entity); 
+        }
+        function positionCombatEntity(entity) { 
+            if (entity.element) {
+                const xPos = entity.id ? entity.combatX : entity.x; 
+                const yPos = entity.id ? entity.combatY : entity.y;
+                entity.element.style.left = `${xPos * COMBAT_CELL_SIZE + (COMBAT_CELL_SIZE - 26)/2}px`;
+                entity.element.style.top = `${yPos * COMBAT_CELL_SIZE + (COMBAT_CELL_SIZE - 26)/2}px`;
+                entity.element.classList.remove('active-sprite'); 
+                const currentActor = turnOrder[currentTurnIndex];
+                if (currentActor && ((entity.id && entity.id === currentActor.id) || (!entity.id && entity.name === currentActor.name && entity.uniqueId === currentActor.uniqueId)) && !entity.isDead) { 
+                    entity.element.classList.add('active-sprite');
+                }
+            }
+            const cells = combatMapGrid.children;
+            for (let i = 0; i < cells.length; i++) { 
+                cells[i].classList.remove('active-character-cell-map');
+            }
+            const currentActor = turnOrder[currentTurnIndex];
+            if (currentActor && !currentActor.isDead) { 
+                const xPos = currentActor.id ? currentActor.combatX : currentActor.x;
+                const yPos = currentActor.id ? currentActor.combatY : currentActor.y;
+                const charCell = getCombatCell(xPos, yPos);
+                if (charCell) charCell.classList.add('active-character-cell-map');
+            }
+        }
+        function renderPartyStats() { /* ... (same as before) ... */ 
+            partyStatsContainer.innerHTML = '<h3>Party</h3>'; 
+            party.forEach((member) => { 
+                const statsDiv = document.createElement('div');
+                statsDiv.classList.add('character-stats');
+                statsDiv.id = `stats-${member.id}`;
+                const currentActor = turnOrder[currentTurnIndex];
+                if (currentActor && currentActor.id === member.id && !member.isDead) {
+                    statsDiv.classList.add('active-char-ui');
+                }
+                statsDiv.innerHTML = `
+                    <h4 data-entityid="${member.id}">${member.name} (${member.char}) ${member.isDead ? "[DEAD]" : ""}</h4>
+                    <div class="health-bar-container">
+                        <div class="health-bar">
+                            <div id="hp-bar-${member.id}" class="health-bar-current" style="width: ${ (member.hp / member.maxHp) * 100 }%;"></div>
+                        </div>
+                        <div class="health-bar-text">HP: <span id="hp-text-${member.id}">${member.hp}</span>/${member.maxHp}</div>
+                    </div>
+                    <p>AC: ${member.ac}</p>
+                `;
+                partyStatsContainer.appendChild(statsDiv);
+                statsDiv.querySelector('h4').addEventListener('click', () => showStatsModal(member));
+            });
+        }
+        function renderEnemyStats() { /* ... (same as before) ... */
+            enemiesStatsContainer.innerHTML = '<h3>Enemies</h3>'; 
+            enemies.forEach(enemy => {
+                if (!enemy.isDead) {
+                    const statsDiv = document.createElement('div');
+                    statsDiv.classList.add('enemy-stats-block'); 
+                    statsDiv.id = `stats-enemy-${enemy.uniqueId}`;
+                     const currentActor = turnOrder[currentTurnIndex];
+                    if (currentActor && !currentActor.id && currentActor.uniqueId === enemy.uniqueId) { 
+                        statsDiv.classList.add('active-char-ui'); 
+                    }
+                    statsDiv.innerHTML = `
+                        <h4 data-enemyid="${enemy.uniqueId}">${enemy.name} (${enemy.char})</h4>
+                        <div class="health-bar-container">
+                            <div class="health-bar">
+                                <div id="hp-bar-enemy-${enemy.uniqueId}" class="health-bar-current" style="width: ${ (enemy.hp / enemy.maxHp) * 100 }%;"></div>
+                            </div>
+                            <div class="health-bar-text">HP: <span id="hp-text-enemy-${enemy.uniqueId}">${enemy.hp}</span>/${enemy.maxHp}</div>
+                        </div>
+                        <p>AC: ${enemy.ac}</p>
+                    `;
+                    enemiesStatsContainer.appendChild(statsDiv);
+                    statsDiv.querySelector('h4').addEventListener('click', () => showStatsModal(enemy));
+                }
+            });
+        }
+        function highlightCombatCells() { /* Renamed from highlightCells */
+            const cells = combatMapGrid.children;
+            for (let i = 0; i < cells.length; i++) {
+                cells[i].classList.remove('reachable', 'targetable-enemy', 'attackable-area');
+            }
+            const currentActor = turnOrder[currentTurnIndex];
+            if (currentActor) positionCombatEntity(currentActor); 
+            if (!currentActor || currentActor.isDead || !currentActor.id) return; 
+            if (selectedAction === 'move' && !currentActor.hasMovedThisTurn) {
+                for (let r = 0; r < COMBAT_GRID_SIZE; r++) {
+                    for (let c = 0; c < COMBAT_GRID_SIZE; c++) {
+                        if (isCellOccupiedByCombatEntity(c, r, currentActor) || isCombatObstacle(c,r)) continue; 
+                        let pathResult = findPathInCombat(currentActor.combatX, currentActor.combatY, c, r, currentActor); 
+                        if (pathResult && pathResult.cost <= currentActor.speed && pathResult.path.length > 1) {
+                             getCombatCell(c,r)?.classList.add('reachable');
+                        }
+                    }
+                }
+            } else if (selectedAction === 'attack' && !currentActor.hasActedThisTurn) {
+                for (let r = 0; r < COMBAT_GRID_SIZE; r++) { 
+                    for (let c = 0; c < COMBAT_GRID_SIZE; c++) {
+                        if (isCombatObstacle(c,r) && !(enemies.some(e => e.x === c && e.y === r))) continue; 
+                        const distToCell = Math.max(Math.abs(currentActor.combatX - c), Math.abs(currentActor.combatY - r));
+                        let cellIsAttackable = false;
+                        if (currentActor.isRangedAttacker) {
+                            cellIsAttackable = distToCell <= currentActor.attackRange && hasLineOfSight(currentActor.combatX, currentActor.combatY, c, r);
+                        } else { 
+                            cellIsAttackable = distToCell === 1; 
+                        }
+                        if (cellIsAttackable) {
+                            getCombatCell(c,r)?.classList.add('attackable-area');
+                        }
+                    }
+                }
+                enemies.forEach(enemy => { 
+                    if (!enemy.isDead) {
+                        const enemyCell = getCombatCell(enemy.x, enemy.y);
+                        if(enemyCell && enemyCell.classList.contains('attackable-area')){
+                            enemyCell.classList.add('targetable-enemy');
+                        }
+                    }
+                });
+            }
+        }
+        function clearCombatHighlightsAndSelection() { /* Renamed */
+            selectedAction = null;
+            highlightCombatCells(); 
+            updateCombatActionButtonsState(); // Renamed
+        }
+        function updateCombatActionButtonsState() { /* Renamed */
+            const currentActor = turnOrder[currentTurnIndex];
+            if (!currentActor || currentActor.isDead || !currentActor.id || combatGameEnded) { 
+                moveButton.disabled = true; attackButton.disabled = true;
+                moveButton.classList.remove('selected-action'); attackButton.classList.remove('selected-action');
+            } else { 
+                moveButton.disabled = currentActor.hasMovedThisTurn; attackButton.disabled = currentActor.hasActedThisTurn;
+                if(selectedAction === 'move' && !moveButton.disabled) moveButton.classList.add('selected-action');
+                else moveButton.classList.remove('selected-action');
+                if(selectedAction === 'attack' && !attackButton.disabled) attackButton.classList.add('selected-action');
+                else attackButton.classList.remove('selected-action');
+            }
+            endTurnButton.disabled = combatGameEnded;
+        }
+        function handleCombatCellClick(col, row) { 
+            const currentActor = turnOrder[currentTurnIndex];
+            if (combatGameEnded || !currentActor ) return; 
+            if (!selectedAction) {
+                const clickedEnemy = enemies.find(e => !e.isDead && e.x === col && e.y === row);
+                if (clickedEnemy) { showStatsModal(clickedEnemy); return; }
+                 const clickedPartyMember = party.find(p => !p.isDead && p.combatX === col && p.combatY === row && (!currentActor.id || p.id !== currentActor.id)); 
+                if(clickedPartyMember){ showStatsModal(clickedPartyMember); return; }
+            }
+            if (!currentActor.id || currentActor.isDead || !selectedAction) return; 
+            if (selectedAction === 'move' && !currentActor.hasMovedThisTurn) {
+                if (getCombatCell(col,row)?.classList.contains('reachable')) {
+                    currentActor.combatX = col; currentActor.combatY = row;
+                    addToLog(`${currentActor.name} moves to (${col}, ${row}).`, 'player-action');
+                    currentActor.hasMovedThisTurn = true; clearCombatHighlightsAndSelection();
+                } else { addToLog("Cannot move there or invalid target.", 'info'); }
+            } else if (selectedAction === 'attack' && !currentActor.hasActedThisTurn) {
+                const targetEnemy = enemies.find(e => !e.isDead && e.x === col && e.y === row);
+                if (targetEnemy && getCombatCell(col,row)?.classList.contains('targetable-enemy')) {
+                    handlePlayerAttack(currentActor, targetEnemy);
+                } else { addToLog("Click on a highlighted Enemy to attack.", 'info'); }
+            }
+        }
+        async function handlePlayerAttack(attacker, target) { /* ... (uses combatX/Y for attacker) ... */ 
+            if (target.isDead) { clearCombatHighlightsAndSelection(); return; }
+            const distToTarget = Math.max(Math.abs(attacker.combatX - target.x), Math.abs(attacker.combatY - target.y));
+            let inRange = false; let attackType = attacker.attackName; let isRangedForDisadvantageCheck = attacker.isRangedAttacker;
+            if (attacker.isRangedAttacker) {
+                inRange = distToTarget <= attacker.attackRange && hasLineOfSight(attacker.combatX, attacker.combatY, target.x, target.y);
+            } else { inRange = distToTarget === 1; }
+            if (!inRange) { addToLog(`${attacker.name} target: ${target.name} is not in attack range or sight.`, 'info'); clearCombatHighlightsAndSelection(); return; }
+            let disadvantage = isRangedForDisadvantageCheck && (distToTarget <=1 && !target.isDead);
+            const roll1 = rollDice(20); let attackRollValue = roll1;
+            let logMessage = `${attacker.name} attacks ${target.name} with ${attackType}. Roll: ${roll1}`;
+            if (disadvantage) { const roll2 = rollDice(20); attackRollValue = Math.min(roll1, roll2); logMessage += ` (Disadvantage: rolled ${roll1}, ${roll2} -> using ${attackRollValue})`; }
+            const finalAttackRoll = attackRollValue + attacker.attackBonus; logMessage += ` + ${attacker.attackBonus} = ${finalAttackRoll}.`;
+            if (finalAttackRoll >= target.ac || attackRollValue === 20) {
+                let damage = rollDice(attacker.damageDice) + attacker.damageBonus;
+                if (attackRollValue === 20) { damage += rollDice(attacker.damageDice); logMessage += " CRITICAL HIT!"; }
+                target.hp = Math.max(0, target.hp - damage); logMessage += ` Hit! ${target.name} takes ${damage} damage.`; updateHPDisplays(); renderEnemyStats();
+                if (target.hp === 0) {
+                    target.isDead = true; target.element.classList.add('dead'); target.element.textContent = 'X';
+                    logMessage += ` ${target.name} defeated!`; 
+                    if (enemies.every(e => e.isDead)) {
+                        addToLog(logMessage, 'player-action'); endCombat(true); return;
+                    }
+                }
+            } else { logMessage += " Miss!"; }
+            if (!combatGameEnded) addToLog(logMessage, 'player-action');
+            attacker.hasActedThisTurn = true; clearCombatHighlightsAndSelection();
+        }
+        async function enemyAct(enemy) { /* ... (uses combatX/Y for party members) ... */ 
+             if (enemy.isDead || party.every(p => p.isDead) || combatGameEnded) {
+                 if (!combatGameEnded) startNextCombatTurn(); return;
+             }
+            addToLog(`${enemy.name}'s turn.`, 'enemy-action'); let enemyActedThisTurn = false;
+            let closestMember = null; let minDist = Infinity;
+            party.forEach(member => {
+                if (!member.isDead) {
+                    const dist = heuristic(enemy.x, enemy.y, member.combatX, member.combatY); 
+                    if (dist < minDist) { minDist = dist; closestMember = member; } 
+                    else if (dist === minDist && Math.random() < 0.5) { closestMember = member; }
+                }
+            });
+            if (!closestMember) { if (!combatGameEnded) startNextCombatTurn(); return; }
+            const actualDistToTarget = Math.max(Math.abs(closestMember.combatX - enemy.x), Math.abs(closestMember.combatY - enemy.y));
+            if (actualDistToTarget === 1) { 
+                const attackRoll = rollDice(20); const finalAttackRoll = attackRoll + enemy.attackBonus;
+                let logMessage = `${enemy.name} attacks ${closestMember.name} with ${enemy.attackName}. Roll: ${attackRoll} + ${enemy.attackBonus} = ${finalAttackRoll}.`;
+                 if (finalAttackRoll >= closestMember.ac || attackRoll === 20) { 
+                    let damage = rollDice(enemy.damageDice) + enemy.damageBonus;
+                    if (attackRoll === 20) { damage += rollDice(enemy.damageDice); logMessage += " CRITICAL HIT!";}
+                    closestMember.hp = Math.max(0, closestMember.hp - damage);
+                    logMessage += ` Hit! ${closestMember.name} takes ${damage} damage.`;
+                    updateHPDisplays(); renderPartyStats();
+                    if (closestMember.hp === 0) { 
+                        closestMember.isDead = true; closestMember.element.classList.add('dead'); closestMember.element.textContent = 'X';
+                        logMessage += ` ${closestMember.name} defeated!`;
+                        if (party.every(p => p.isDead)) { addToLog(logMessage, 'enemy-action'); endCombat(false); return;}
+                    }
+                    const banterPrompt = `You are a ${enemy.name} in a D&D game. You just hit a ${closestMember.name}. Say a short, menacing or funny taunt (1-2 sentences, max 15 words).`;
+                    const banter = await callGemini(banterPrompt); addToLog(`${enemy.name}: "${banter}"`, 'banter');
+                 } else { logMessage += " Miss!"; }
+                 addToLog(logMessage, 'enemy-action'); enemyActedThisTurn = true;
+            } else { 
+                 let pathResult = findPathInCombat(enemy.x, enemy.y, closestMember.combatX, closestMember.combatY, enemy); 
+                 if (pathResult && pathResult.path.length > 1) {
+                    let path = pathResult.path; let bestLandingX = enemy.x; let bestLandingY = enemy.y;
+                    for (let i = 1; i < path.length; i++) {
+                        const step = path[i]; if (step.g > enemy.speed) break; 
+                        if (step.x === closestMember.combatX && step.y === closestMember.combatY) {
+                            if (i > 0 && !isCellOccupiedByCombatEntity(path[i-1].x, path[i-1].y, enemy)) {
+                                bestLandingX = path[i-1].x; bestLandingY = path[i-1].y;
+                            } break; 
+                        }
+                        if (!isCellOccupiedByCombatEntity(step.x, step.y, enemy)) {
+                            bestLandingX = step.x; bestLandingY = step.y;
+                        }
+                        if (heuristic(bestLandingX, bestLandingY, closestMember.combatX, closestMember.combatY) === 1) break; 
+                    }
+                    if (bestLandingX !== enemy.x || bestLandingY !== enemy.y) {
+                        enemy.x = bestLandingX; enemy.y = bestLandingY; positionCombatEntity(enemy);
+                        addToLog(`${enemy.name} moves to (${enemy.x}, ${enemy.y}).`, 'enemy-action'); enemyActedThisTurn = true;
+                        if (Math.max(Math.abs(closestMember.combatX - enemy.x), Math.abs(closestMember.combatY - enemy.y)) === 1 && !closestMember.isDead) {
+                            const attackRoll = rollDice(20); const finalAttackRoll = attackRoll + enemy.attackBonus;
+                            let logMessage = `${enemy.name} attacks ${closestMember.name} with ${enemy.attackName}. Roll: ${attackRoll} + ${enemy.attackBonus} = ${finalAttackRoll}.`;
+                             if (finalAttackRoll >= closestMember.ac || attackRoll === 20) { 
+                                let damage = rollDice(enemy.damageDice) + enemy.damageBonus;
+                                if (attackRoll === 20) { damage += rollDice(enemy.damageDice); logMessage += " CRITICAL HIT!"; }
+                                closestMember.hp = Math.max(0, closestMember.hp - damage);
+                                logMessage += ` Hit! ${closestMember.name} takes ${damage} damage.`;
+                                updateHPDisplays(); renderPartyStats();
+                                if (closestMember.hp === 0) { 
+                                    closestMember.isDead = true; closestMember.element.classList.add('dead'); closestMember.element.textContent = 'X';
+                                    logMessage += ` ${closestMember.name} defeated!`;
+                                    if (party.every(p => p.isDead)) { addToLog(logMessage, 'enemy-action'); endCombat(false); return;}
+                                }
+                                 const banterPrompt = `You are a ${enemy.name} in a D&D game. You just hit a ${closestMember.name}. Say a short, menacing or funny taunt (1-2 sentences, max 15 words).`;
+                                 const banter = await callGemini(banterPrompt); addToLog(`${enemy.name}: "${banter}"`, 'banter');
+                             } else { logMessage += " Miss!"; }
+                             addToLog(logMessage, 'enemy-action');
+                        }
+                    }
+                 }
+                 if (!enemyActedThisTurn && actualDistToTarget > 1) { 
+                     addToLog(`${enemy.name} is blocked or has nowhere to move closer.`, 'enemy-action'); enemyActedThisTurn = true;
+                 }
+            }
+            if (!enemyActedThisTurn && !combatGameEnded) { addToLog(`${enemy.name} does nothing.`, 'enemy-action'); }
+            if (!combatGameEnded) startNextCombatTurn();
+        }
+        function endCombat(playerWon) { /* ... (same as before) ... */ 
+            combatGameEnded = true;
+            clearCombatHighlightsAndSelection();
+            if (playerWon) {
+                addToLog("Victory! Your party defeated the enemies!", 'info');
+                explorationLog.textContent = "You cleared the Goblin Cave! What next?";
+            } else {
+                addToLog("Defeat! The enemies bested your party.", 'info');
+                explorationLog.textContent = "Your party was defeated. Rest and try again.";
+            }
+            setTimeout(() => switchGameState('exploration'), 3000);
+        }
+        function rollInitiative() { /* ... (same as before) ... */ 
+            turnOrder = [];
+            party.forEach(p => { if (!p.isDead) { p.initiative = rollDice(20) + p.dexMod; turnOrder.push(p); } });
+            enemies.forEach(e => { if (!e.isDead) { e.initiative = rollDice(20) + e.dexMod; turnOrder.push(e); } });
+            turnOrder.sort((a,b) => b.initiative - a.initiative); 
+            currentTurnIndex = -1; 
+            displayTurnOrder();
+        }
+        function displayTurnOrder() { /* ... (same as before) ... */ 
+            turnOrderListUI.innerHTML = '';
+            turnOrder.forEach((entity, index) => {
+                if (entity.isDead) return; 
+                const li = document.createElement('li');
+                li.textContent = `${entity.name} (Init: ${entity.initiative})`;
+                if (index === currentTurnIndex) li.classList.add('current-turn-visual');
+                turnOrderListUI.appendChild(li);
+            });
+        }
+        function startNextCombatTurn() { /* Renamed from startNextTurn */
+            if (combatGameEnded) return;
+            const previousActor = turnOrder[currentTurnIndex];
+            if (previousActor && previousActor.element) previousActor.element.classList.remove('active-sprite');
+            if (previousActor && previousActor.id){ const prevStatsUI = document.getElementById(`stats-${previousActor.id}`); if(prevStatsUI) prevStatsUI.classList.remove('active-char-ui');}
+            if (previousActor && !previousActor.id) { const prevEnemyStatsUI = document.getElementById(`stats-enemy-${previousActor.uniqueId}`); if (prevEnemyStatsUI) prevEnemyStatsUI.classList.remove('active-char-ui');}
+
+            let nextTurnFound = false;
+            for (let i = 0; i < turnOrder.length; i++) {
+                currentTurnIndex = (currentTurnIndex + 1) % turnOrder.length;
+                if (!turnOrder[currentTurnIndex].isDead) { nextTurnFound = true; break; }
+            }
+            if (!nextTurnFound) { 
+                 if (enemies.every(e => e.isDead)) endCombat(true); 
+                 else if (party.every(p => p.isDead)) endCombat(false); 
+                 return;
+            }
+            const currentActor = turnOrder[currentTurnIndex];
+            addToLog(`${currentActor.name}'s turn.`, 'info'); selectedAction = null;
+            if (currentActor.id) { 
+                currentActor.hasMovedThisTurn = false; currentActor.hasActedThisTurn = false;
+                renderPartyStats(); renderEnemyStats(); 
+            } else { 
+                renderPartyStats(); renderEnemyStats(); 
+            }
+            positionCombatEntity(currentActor); displayTurnOrder(); updateCombatActionButtonsState(); highlightCombatCells();
+            if (!currentActor.id && !currentActor.isDead) { setTimeout(() => enemyAct(currentActor), 500); }
+        }
+        function showStatsModal(entity) { /* ... (same as before) ... */ 
+            document.getElementById('modal-char-name').textContent = entity.name;
+            document.getElementById('modal-char-hp').textContent = entity.hp;
+            document.getElementById('modal-char-maxhp').textContent = entity.maxHp;
+            document.getElementById('modal-char-ac').textContent = entity.ac;
+            document.getElementById('modal-char-speed').textContent = entity.speed;
+            document.getElementById('modal-char-attackname').textContent = entity.attackName;
+            document.getElementById('modal-char-atkbonus').textContent = entity.attackBonus;
+            document.getElementById('modal-char-dmgdice').textContent = entity.damageDice;
+            document.getElementById('modal-char-dmgbonus').textContent = entity.damageBonus;
+            document.getElementById('modal-char-dexmod').textContent = entity.dexMod;
+            statsModal.style.display = "block";
+        }
+        function hideStatsModal() { statsModal.style.display = "none"; }
+        function setupEnemiesForCombat(difficulty) { /* Renamed from setupEnemies */
+            enemies = []; 
+            document.querySelectorAll('.enemy').forEach(el => el.remove());
+            let idCounter = 0; 
+            let goblinBase = { name: "Goblin", char: "G", hp: 7, maxHp: 7, ac: 15, attackName: "Scimitar", attackBonus: 4, damageDice: 6, damageBonus: 2, speed: 3, dexMod: 2, initiative: 0, isDead: false, element: null };
+            if (difficulty === 'easy') {
+                enemies.push({...goblinBase, name: "Goblin", x: 10, y: 1, uniqueId: `goblin-${idCounter++}`});
+            } else if (difficulty === 'medium') {
+                enemies.push({...goblinBase, name: "Goblin Alpha", x: 10, y: 1, uniqueId: `goblin-${idCounter++}`});
+                enemies.push({...goblinBase, name: "Goblin Beta", x: 9, y: 2, uniqueId: `goblin-${idCounter++}`});
+            } else if (difficulty === 'hard') {
+                enemies.push({ name: "Boss Goblin", char: "B", hp: 20, maxHp: 20, ac: 16, attackName: "Heavy Scimitar", attackBonus: 5, damageDice: 8, damageBonus: 3, speed: 3, x: 10, y: 1, dexMod: 1, initiative: 0, isDead: false, element: null, uniqueId: `boss-${idCounter++}` });
+                enemies.push({...goblinBase, name: "Goblin Guard", x: 9, y: 2, uniqueId: `goblin-${idCounter++}`});
+            }
+            enemies.forEach(e => createCombatEntityElement(e)); // Use combat version
+            renderEnemyStats(); 
+            updateHPDisplays(); 
+        }
+        
+        // --- Game State Management & Exploration Logic ---
+        function switchGameState(newState) {
+            gameState = newState;
+            startMenuContainer.style.display = 'none';
+            explorationContainer.style.display = 'none';
+            combatContainer.style.display = 'none';
+
+            if (gameState === 'start_menu') {
+                startMenuContainer.style.display = 'block';
+            } else if (gameState === 'exploration') {
+                explorationContainer.style.display = 'flex'; 
+                renderExplorationMap();
+                updateHPDisplays(); 
+                updatePartyLocationDisplay();
+                addToLog("You are in the Overworld. Use arrow keys to move.", 'info', explorationLog);
+            } else if (gameState === 'combat') {
+                combatContainer.style.display = 'grid'; 
+                initializeCombatScene(currentDifficulty); 
+            }
+        }
+
+        function renderExplorationMap() { // Renamed from drawExplorationMap
+            explorationMapGrid.innerHTML = '';
+            explorationMapGrid.style.gridTemplateColumns = `repeat(${EXPLORATION_GRID_WIDTH}, ${EXPLORATION_CELL_SIZE}px)`;
+            explorationMapGrid.style.gridTemplateRows = `repeat(${EXPLORATION_GRID_HEIGHT}, ${EXPLORATION_CELL_SIZE}px)`;
+            explorationMapGrid.style.width = `${EXPLORATION_GRID_WIDTH * EXPLORATION_CELL_SIZE}px`;
+            explorationMapGrid.style.height = `${EXPLORATION_GRID_HEIGHT * EXPLORATION_CELL_SIZE}px`;
+
+            for (let r = 0; r < EXPLORATION_GRID_HEIGHT; r++) {
+                for (let c = 0; c < EXPLORATION_GRID_WIDTH; c++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('exploration-cell');
+                    const tileType = explorationMapLayout[r][c];
+                    let content = '';
+                    switch (tileType) {
+                        case '.': cell.classList.add('exp-floor'); break;
+                        case 'W': cell.classList.add('exp-wall'); content = '🌲'; break; 
+                        case 'F': cell.classList.add('exp-forest'); content = '🌳'; break;
+                        case 'C': cell.classList.add('exp-cave'); content = '🦇'; break;
+                        case 'V': cell.classList.add('exp-village'); content = '🏠'; break;
+                    }
+                    if (partyPosition.x === c && partyPosition.y === r) {
+                        cell.classList.add('exp-party');
+                        content = '@';
+                    }
+                    cell.textContent = content;
+                    explorationMapGrid.appendChild(cell);
+                }
+            }
+        }
+        
+        function updatePartyLocationDisplay() {
+            partyLocationDisplay.textContent = `Overworld (${partyPosition.x},${partyPosition.y})`;
+        }
+
+        function handleExplorationKeydown(event) {
+            if (gameState !== 'exploration') return;
+            let newX = partyPosition.x;
+            let newY = partyPosition.y;
+
+            switch (event.key) {
+                case 'ArrowUp': newY--; break;
+                case 'ArrowDown': newY++; break;
+                case 'ArrowLeft': newX--; break;
+                case 'ArrowRight': newX++; break;
+                default: return;
+            }
+
+            if (newX < 0 || newX >= EXPLORATION_GRID_WIDTH || newY < 0 || newY >= EXPLORATION_GRID_HEIGHT) {
+                return;
+            }
+
+            const targetTile = explorationMapLayout[newY][newX];
+            if (targetTile === 'W') { 
+                addToLog("You can't move there.", 'info', explorationLog);
+                return;
+            }
+
+            partyPosition.x = newX;
+            partyPosition.y = newY;
+            renderExplorationMap();
+            updatePartyLocationDisplay();
+
+            if (targetTile === 'C') {
+                addToLog("You found a dark cave entrance!", 'info', explorationLog);
+                setTimeout(() => switchGameState('combat'), 1000);
+            } else if (targetTile === 'V') {
+                addToLog("You enter a quiet village.", 'info', explorationLog);
+            } else if (targetTile === 'F') {
+                 addToLog("You tread through the forest.", 'info', explorationLog);
+            } else {
+                // Do nothing
+                //  addToLog(`Moved to (${newX},${newY})`, 'info', explorationLog);
+            }
+        }
+
+
+        function initializeCombatScene(difficulty) {
+            combatLog.innerHTML = '<p class="info">Combat started! Rolling initiative...</p>'; 
+            combatGameEnded = false; 
+            party.forEach(p => { 
+                p.hasMovedThisTurn = false;
+                p.hasActedThisTurn = false;
+                 for(let r=0; r < COMBAT_GRID_SIZE; r++) { 
+                    for(let c=0; c < COMBAT_GRID_SIZE; c++) {
+                        if (combatInitialMapLayout[r][c] === p.char) { p.combatX = c; p.combatY = r; } 
+                    }
+                }
+            });
+            setupEnemiesForCombat(difficulty);
+            initializeCombatMapState(); 
+            generateAdditionalCombatObstacles(); 
+            drawCombatMapFromState(); 
+            party.forEach(member => { 
+                if(member.element) member.element.remove(); 
+                createCombatEntityElement(member); 
+            }); 
+            enemies.forEach(enemy => {
+                if(enemy.element) enemy.element.remove(); 
+                createCombatEntityElement(enemy);
+            });
+            renderPartyStats(); 
+            renderEnemyStats();
+            updateHPDisplays();
+            rollInitiative();
+            startNextCombatTurn(); 
+        }
+
+        // --- Initial Setup ---
+        function gameSetup() {
+            combatMapGrid.style.gridTemplateColumns = `repeat(${COMBAT_GRID_SIZE}, ${COMBAT_CELL_SIZE}px)`;
+            combatMapGrid.style.gridTemplateRows = `repeat(${COMBAT_GRID_SIZE}, ${COMBAT_CELL_SIZE}px)`;
+            combatMapGrid.style.width = `${COMBAT_GRID_SIZE * COMBAT_CELL_SIZE}px`;
+            combatMapGrid.style.height = `${COMBAT_GRID_SIZE * COMBAT_CELL_SIZE}px`;
+            
+            document.getElementById('easy-mode-button').addEventListener('click', () => { currentDifficulty = 'easy'; switchGameState('exploration'); });
+            document.getElementById('medium-mode-button').addEventListener('click', () => { currentDifficulty = 'medium'; switchGameState('exploration'); });
+            document.getElementById('hard-mode-button').addEventListener('click', () => { currentDifficulty = 'hard'; switchGameState('exploration'); });
+
+            document.addEventListener('keydown', handleExplorationKeydown);
+            
+            moveButton.addEventListener('click', () => {
+                const currentActor = turnOrder[currentTurnIndex];
+                if (!currentActor || !currentActor.id || combatGameEnded || currentActor.hasMovedThisTurn || currentActor.isDead) return;
+                selectedAction = (selectedAction === 'move' ? null : 'move');
+                updateCombatActionButtonsState(); highlightCombatCells();
+                if(selectedAction === 'move') addToLog(`${currentActor.name}: Select a square to move to.`, 'info');
+                else if (selectedAction === null) addToLog(`${currentActor.name}: Move action deselected.`, 'info');
+            });
+            attackButton.addEventListener('click', () => {
+                const currentActor = turnOrder[currentTurnIndex];
+                if (!currentActor || !currentActor.id || combatGameEnded || currentActor.hasActedThisTurn || currentActor.isDead) return;
+                 selectedAction = (selectedAction === 'attack' ? null : 'attack');
+                updateCombatActionButtonsState(); highlightCombatCells();
+                if(selectedAction === 'attack') addToLog(`${currentActor.name}: Select an enemy to attack.`, 'info');
+                else if (selectedAction === null) addToLog(`${currentActor.name}: Attack action deselected.`, 'info');
+            });
+            endTurnButton.addEventListener('click', () => {
+                const currentActor = turnOrder[currentTurnIndex];
+                if (!currentActor || combatGameEnded || currentActor.isDead) return;
+                if (currentActor.id) { 
+                     addToLog(`${currentActor.name} ends their turn.`, 'player-action');
+                }
+                clearCombatHighlightsAndSelection(); 
+                startNextCombatTurn(); 
+            });
+
+            modalCloseButton.onclick = hideStatsModal;
+            window.onclick = function(event) { 
+                if (event.target == statsModal) hideStatsModal();
+            }
+
+            turnOrderToggle.addEventListener('click', () => {
+                turnOrderListUI.classList.toggle('collapsed');
+                turnOrderIndicator.textContent = turnOrderListUI.classList.contains('collapsed') ? '[+]' : '[-]';
+            });
+
+            switchGameState('start_menu');
+        }
+        gameSetup(); 
+    </script>
+</body>
+</html>

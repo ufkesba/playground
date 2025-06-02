@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Brent Ufkes | AI Game Playground</title>
+  <style>
+    body {
+      font-family: 'Fira Mono', 'Consolas', 'Menlo', 'Monaco', monospace;
+      background: #181c1b;
+      color: #a8ff60;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      letter-spacing: 0.5px;
+    }
+    header {
+      background: #101412;
+      padding: 2em 0 1em 0;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.7);
+      border-bottom: 2px solid #00ff9c;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 2.5em;
+      letter-spacing: 2px;
+      color: #00ff9c;
+      text-shadow: 0 0 8px #00ff9c44;
+    }
+    header p {
+      margin: 0.5em 0 0 0;
+      color: #39ff14;
+      font-size: 1.2em;
+      font-family: inherit;
+      text-shadow: 0 0 4px #39ff1444;
+    }
+    main {
+      max-width: 700px;
+      margin: 2em auto;
+      background: #232826;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.7);
+      padding: 2em 2.5em;
+      border: 1px solid #00ff9c33;
+    }
+    section {
+      margin-bottom: 2em;
+    }
+    h2 {
+      color: #39ff14;
+      margin-top: 0;
+      font-family: inherit;
+      text-shadow: 0 0 4px #39ff1444;
+    }
+    .menu {
+      background: #151a17;
+      padding: 1.5em 2em;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      text-align: center;
+      margin-top: 1em;
+      border: 1px solid #00ff9c55;
+    }
+    .menu a {
+      display: inline-block;
+      margin: 1em 0.5em;
+      padding: 0.75em 2em;
+      background: #101412;
+      color: #00ff9c;
+      text-decoration: none;
+      border-radius: 5px;
+      font-size: 1.1em;
+      font-family: inherit;
+      border: 1px solid #00ff9c;
+      box-shadow: 0 0 8px #00ff9c33;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    }
+    .menu a:hover {
+      background: #00ff9c;
+      color: #101412;
+      box-shadow: 0 0 16px #00ff9c99;
+    }
+    ul {
+      padding-left: 1.5em;
+    }
+    li {
+      margin-bottom: 0.5em;
+    }
+    code, pre {
+      background: #101412;
+      color: #39ff14;
+      padding: 0.2em 0.4em;
+      border-radius: 4px;
+      font-size: 1em;
+    }
+    footer {
+      text-align: center;
+      color: #39ff14;
+      padding: 1.5em 0 0.5em 0;
+      font-size: 0.95em;
+      border-top: 1px solid #00ff9c33;
+      margin-top: 2em;
+      text-shadow: 0 0 4px #39ff1444;
+    }
+    /* Optional: blinking cursor effect for hacker vibe */
+    .blinker {
+      display: inline-block;
+      width: 10px;
+      background: #39ff14;
+      animation: blink 1s steps(2, start) infinite;
+      height: 1.2em;
+      vertical-align: middle;
+      margin-left: 2px;
+    }
+    @keyframes blink {
+      to { opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Brent Ufkes | AI Game Playground</h1>
+    <p>Exploring simple game development with the help of AI<span class="blinker"></span></p>
+  </header>
+  <main>
+    <section>
+      <h2>Welcome!</h2>
+      <p>
+        <strong>Hey, I’m Brent.</strong> This is my personal blog where I plan to document my journey using AI tools to create simple web-based games.<br>
+        I will use AI to brainstorm ideas, generate code, and iterate quickly on prototypes.<br>
+      </p>
+    </section>
+    <section>
+      <h2>Games</h2>
+      <div class="menu">
+        <a href="pixel-dungeon-combat.html">Pixel Dungeon Combat</a>
+        <a href="pixel-dnd.html">Pixel D&D (WIP)</a>
+        <!-- Add more games here as you create them! -->
+      </div>
+    </section>
+    <section>
+      <h2>How I Use AI</h2>
+      <ul>
+        <li>Generating starter code for games and UI</li>
+        <li>Debugging and optimizing JavaScript</li>
+        <li>Learning new frameworks and libraries</li>
+        <li>Rapid prototyping and idea validation</li>
+      </ul>
+      <p>
+        <em>Every game here is a learning experiment, and AI is my coding partner.</em>
+      </p>
+    </section>
+  </main>
+  <footer>
+    &copy; 2025 Brent Ufkes &mdash; Built with AI assistance
+  </footer>
+</body>
+</html>
